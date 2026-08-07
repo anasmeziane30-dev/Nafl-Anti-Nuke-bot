@@ -2,20 +2,28 @@ import discord
 from discord.ext import commands
 import os
 import time
+import threading
+from flask import Flask
 
-# إعدادات الصلاحيات (Intents)
+# --- كود خادم الويب الوهمي للحفاظ على نشاط البوت ---
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "I am alive!"
+
+def run_web():
+    app.run(host='0.0.0.0', port=8080)
+
+# --- كود البوت الأساسي ---
 intents = discord.Intents.default()
 intents.guilds = True
 intents.members = True
-intents.moderation = True  # تعادل الإشراف في الإصدارات الحديثة
-intents.guild_messages = True
+intents.moderation = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
-
-# قراءة التوكن من متغيرات البيئة في Render بأمان تام
 TOKEN = os.getenv("TOKEN")
 
-# إعدادات الحد الأقصى للتخريب (عدد العمليات خلال 5 ثوانٍ)
 THRESHOLD = 3
 TIME_WINDOW = 5.0
 actions_map = {}
@@ -23,63 +31,50 @@ actions_map = {}
 def check_action_limit(guild_id, user_id, action_type):
     key = f"{guild_id}-{user_id}-{action_type}"
     now = time.time()
-    
     if key not in actions_map:
         actions_map[key] = []
-    
-    # إضافة الوقت الحالي للعملية
     actions_map[key].append(now)
-    
-    # تصفية العمليات القديمة خارج النافذة الزمنية
     actions_map[key] = [t for t in actions_map[key] if now - t < TIME_WINDOW]
-    
     return len(actions_map[key]) > THRESHOLD
 
 async def punish_user(member, guild, reason):
     try:
-        # عدم معاقبة صاحب السيرفر أو البوتات نفسها
         if member.id == guild.owner_id or member.bot:
             return
-        
-        print(f"[Anti-Nuke] تم رصد تخريب من قبل {member} بسبب: {reason}")
         await guild.ban(member, reason=f"Anti-Nuke: {reason}")
     except Exception as e:
-        print(f"فشل معاقبة المستخدم {member}: {e}")
+        print(f"Error punishing user: {e}")
 
-# مراقبة حذف القنوات
 @bot.event
 async def on_guild_channel_delete(channel):
     try:
         guild = channel.guild
         async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.channel_delete):
-            user = entry.user
-            member = guild.get_member(user.id)
+            member = guild.get_member(entry.user.id)
             if member and check_action_limit(guild.id, member.id, "CHANNEL_DELETE"):
-                await punish_user(member, guild, "حذف عدد كبير من القنوات دفعة واحدة")
+                await punish_user(member, guild, "حذف قنوات بشكل متكرر")
             break
     except Exception as e:
-        print(e)
+        print(f"Error in channelDelete: {e}")
 
-# مراقبة حذف الرتب
 @bot.event
 async def on_guild_role_delete(role):
     try:
         guild = role.guild
         async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.role_delete):
-            user = entry.user
-            member = guild.get_member(user.id)
+            member = guild.get_member(entry.user.id)
             if member and check_action_limit(guild.id, member.id, "ROLE_DELETE"):
-                await punish_user(member, guild, "حذف عدد كبير من الرتب دفعة واحدة")
+                await punish_user(member, guild, "حذف رتب بشكل متكرر")
             break
     except Exception as e:
-        print(e)
+        print(f"Error in roleDelete: {e}")
 
 @bot.event
 async def on_ready():
-    print(f"تم تسجيل الدخول بنجاح باسم {bot.user} وحماية السيرفرات مفعلة!")
+    print(f"تم التشغيل بنجاح باسم {bot.user}")
 
-# تشغيل البوت
-if TOKEN:
+# تشغيل خادم الويب والبوت معاً
+if __name__ == "__main__":
+    t = threading.Thread(target=run_web)
+    t.start()
     bot.run(TOKEN)
-else:
-    print("خطأ: لم يتم العثور على التوكن في متغيرات البيئة (TOKEN).")
