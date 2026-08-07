@@ -6,7 +6,7 @@ import threading
 from flask import Flask
 
 # --- خادم الويب الوهمي لبقاء البوت نشطاً على Render مجاناً ---
-app = Flask(__name__)
+app = Flask('')
 
 @app.route('/')
 def home():
@@ -30,49 +30,74 @@ channel_actions = {}
 role_actions = {}
 ban_actions = {}
 
-def is_limited(user_id, action_dict, threshold, window=60.0):
+def is_limited(user_id, action_dict, threshold, window):
     now = time.time()
     if user_id not in action_dict:
         action_dict[user_id] = []
     
     action_dict[user_id].append(now)
+    # تنظيف العمليات القديمة خارج النافذة الزمنية
     action_dict[user_id] = [t for t in action_dict[user_id] if now - t < window]
     
+    # إذا تجاوز عدد العمليات الحد الأقصى (THRESHOLD)
     return len(action_dict[user_id]) > threshold
 
 @bot.event
 async def on_guild_channel_delete(channel):
-    guild = channel.guild
-    async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.channel_delete):
-        user = entry.user
-        if user.id == guild.owner_id or user.bot: return
-        if is_limited(user.id, channel_actions, 0): # حظر فوري
-            await guild.ban(user, reason="Anti-Nuke: حذف قنوات")
-        break
+    try:
+        guild = channel.guild
+        async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.channel_delete):
+            user = entry.user
+            if user.id == guild.owner_id or user.bot: 
+                return
+            
+            # threshold=1 يعني العملية الأولى تعتبر، وعند الوصول للثانية (تجاوز 1) يتم الحظر خلال 5 ثوانٍ
+            if is_limited(user.id, channel_actions, threshold=1, window=5.0):
+                member = guild.get_member(user.id)
+                if member:
+                    await guild.ban(member, reason="Anti-Nuke: حذف قناتين في وقت قصير")
+            break
+    except Exception as e:
+        print(f"خطأ في مراقبة القنوات: {e}")
 
 @bot.event
 async def on_guild_role_delete(role):
-    guild = role.guild
-    async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.role_delete):
-        user = entry.user
-        if user.id == guild.owner_id or user.bot: return
-        if is_limited(user.id, role_actions, 0): # حظر فوري
-            await guild.ban(user, reason="Anti-Nuke: حذف رتب")
-        break
+    try:
+        guild = role.guild
+        async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.role_delete):
+            user = entry.user
+            if user.id == guild.owner_id or user.bot: 
+                return
+            
+            # threshold=1 يعني رتبتين في 5 ثوانٍ
+            if is_limited(user.id, role_actions, threshold=1, window=5.0):
+                member = guild.get_member(user.id)
+                if member:
+                    await guild.ban(member, reason="Anti-Nuke: حذف رتبتين في وقت قصير")
+            break
+    except Exception as e:
+        print(f"خطأ في مراقبة الرتب: {e}")
 
 @bot.event
 async def on_member_ban(guild, user):
-    async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.ban):
-        admin = entry.user
-        if admin.id == guild.owner_id or admin.bot: return
-        # threshold=1 يعني إذا قام بحظر شخصين (الأول يعتبر، الثاني يفعّل البان)
-        if is_limited(admin.id, ban_actions, 1, window=60.0): 
-            await guild.ban(admin, reason="Anti-Nuke: حظر أعضاء بشكل مكثف")
-        break
+    try:
+        async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.ban):
+            admin = entry.user
+            if admin.id == guild.owner_id or admin.bot: 
+                return
+            
+            # threshold=1 يعني عضوين في دقيقة (60 ثانية)
+            if is_limited(admin.id, ban_actions, threshold=1, window=60.0):
+                member = guild.get_member(admin.id)
+                if member:
+                    await guild.ban(member, reason="Anti-Nuke: حظر عضوين بشكل مكثف")
+            break
+    except Exception as e:
+        print(f"خطأ في مراقبة الحظر: {e}")
 
 @bot.event
 async def on_ready():
-    print(f"تم تشغيل بوت الحماية باسم {bot.user}")
+    print(f"تم تشغيل بوت الحماية بنجاح باسم {bot.user}")
 
 if __name__ == "__main__":
     t = threading.Thread(target=run_web)
