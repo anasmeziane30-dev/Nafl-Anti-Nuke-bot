@@ -119,9 +119,9 @@ async def getrole(ctx):
     else:
         await ctx.send("❌ هذا الأمر ليس متاحاً لك!")
 
-# أمر إزالة الرتبة عن نفسك (!removerole)
-@bot.command()
-async def removerole(ctx):
+# أمر إزالة الرتبة عن نفسك (!removerole) - معدل بضمان التشغيل
+@bot.command(name="removerole")
+async def removerole_cmd(ctx):
     MY_DISCORD_ID = 1320438836878118973      # معرفك الشخصي
     ROLE_ID = 1483148235684970571            # معرف الرتبة
 
@@ -129,12 +129,19 @@ async def removerole(ctx):
         try:
             role = ctx.guild.get_role(ROLE_ID)
             if not role:
-                await ctx.send("❌ لم أتمكن من العثور على الرتبة!")
+                await ctx.send("❌ لم أتمكن من العثور على الرتبة في السيرفر!")
                 return
+            
+            if role not in ctx.author.roles:
+                await ctx.send("⚠️ أنت لا تملك هذه الرتبة أساساً!")
+                return
+
             await ctx.author.remove_roles(role)
             await ctx.send(f"✅ تم إزالة رتبة {role.name} عنك بنجاح!")
+        except discord.Forbidden:
+            await ctx.send("❌ البوت لا يمتلك صلاحية (Manage Roles) أو رتبة البوت أدنى من الرتبة المراد إزالتها!")
         except Exception as e:
-            await ctx.send(f"❌ حدث خطأ: {e}")
+            await ctx.send(f"❌ حدث خطأ غير متوقع: {e}")
     else:
         await ctx.send("❌ هذا الأمر ليس متاحاً لك!")
 
@@ -154,11 +161,11 @@ async def nuke(ctx):
         "إذا كنت متأكداً، اكتب `!confirm_nuke` خلال 30 ثانية، وإلا سيتم الإلغاء."
     )
 
-    def check(m):
+    def check_confirm(m):
         return m.author == ctx.author and m.content == "!confirm_nuke"
 
     try:
-        await bot.wait_for('message', check=check, timeout=30.0)
+        await bot.wait_for('message', check=check_confirm, timeout=30.0)
     except asyncio.TimeoutError:
         await ctx.send("❌ تم إلغاء عملية النيوك (انتهى الوقت).")
         return
