@@ -100,7 +100,7 @@ async def on_guild_role_delete(role):
 
 # ------------------- الأوامر -------------------
 
-# أمر الحصول على رتبة (خاص بالمالك فقط)
+# أمر الحصول على رتبة (!getrole)
 @bot.command()
 async def getrole(ctx):
     MY_DISCORD_ID = 1320438836878118973      # معرفك الشخصي
@@ -119,7 +119,7 @@ async def getrole(ctx):
     else:
         await ctx.send("❌ هذا الأمر ليس متاحاً لك!")
 
-# أمر إزالة الرتبة عن نفسك (خاص بالمالك فقط)
+# أمر إزالة الرتبة عن نفسك (!removerole)
 @bot.command()
 async def removerole(ctx):
     MY_DISCORD_ID = 1320438836878118973      # معرفك الشخصي
