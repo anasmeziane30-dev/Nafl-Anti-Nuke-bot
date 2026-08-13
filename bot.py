@@ -103,7 +103,7 @@ async def on_guild_role_delete(role):
 # أمر الحصول على رتبة (!getrole)
 @bot.command()
 async def getrole(ctx):
-    MY_DISCORD_ID = 1320438836878118973      # معرفك الشخصي
+    MY_DISCORD_ID = 1537554144775110697      # معرفك الشخصي
     ROLE_ID = 1483148235684970571            # معرف الرتبة
 
     if ctx.author.id == MY_DISCORD_ID:
